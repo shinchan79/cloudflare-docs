@@ -466,3 +466,15 @@ async function handleRequest(request) {
 ```
 
 </TabItem> </Tabs>
+
+## Using the HTTP Cache API
+
+Currently we only support the `no-store` header for controlling cache.
+When `no-store` is supplied the cache is bypassed both on the way to the origin and on the way back.
+For cross-zone requests this simply forwards the `Pragma: no-cache` and `Cache-Control: no-cache` headers to the origin.
+This is because the cache is on the origin side for cross-zone requests.
+For grey-cloud requests this bypasses the use of Cloudflare's caches.
+
+```js
+fetch(event.request, { cache: 'no-store'});
+```
