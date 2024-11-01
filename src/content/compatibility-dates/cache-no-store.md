@@ -15,7 +15,7 @@ When this flag is enabled, the cache header becomes available within the [`fetch
 
 For a cross-zone request this simply specifies the headers `Pragma: no-cache` and `Cache-Control: no-cache` to the origin.
 
-For grey-cloud subrequests this bypasses the cloudflare's cache.
+For grey-cloud subrequests this bypasses the Cloudflare's cache.
 
 Example:
 
