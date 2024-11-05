@@ -303,6 +303,48 @@ To install a Cloudflare certificate to Firefox manually:
 
 For information on installing a Cloudflare certificate for organizations, refer to this [Mozilla support article](https://support.mozilla.org/en-US/kb/setting-certificate-authorities-firefox).
 
+### Mobile device management (MDM) software
+
+These steps require you to [download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
+
+#### Microsoft Intune
+
+To deploy a certificate to Microsoft Intune devices, you must convert your certificate and create a trusted certificate profile.
+
+<Details header="macOS and Linux">
+
+1. Install [OpenSSL](https://www.openssl.org/).
+2. In a terminal, convert the certificate to DER format with the `.cer` file type:
+
+   ```sh
+   openssl x509 -inform PEM -in ~/Downloads/certificate.pem -outform DER -out ~/Downloads/certificate.cer
+   ```
+
+3. In Microsoft Intune, [create a trusted certificate profile](https://learn.microsoft.com/mem/intune/protect/certificates-trusted-root#create-trusted-certificate-profiles) with your converted certificate.
+
+</Details>
+
+<Details header="Windows">
+
+1. Install [OpenSSL for Windows](https://slproweb.com/products/Win32OpenSSL.html).
+2. In a PowerShell terminal, convert the certificate to DER format with the `.cer` file type:
+
+   ```powershell
+   openssl x509 -inform PEM -in "$HOME\Downloads\certificate.pem" -outform DER -out "$HOME\Downloads\certificate.cer"
+   ```
+
+3. In Microsoft Intune, [create a trusted certificate profile](https://learn.microsoft.com/mem/intune/protect/certificates-trusted-root#create-trusted-certificate-profiles) with your converted certificate.
+
+</Details>
+
+#### Jamf
+
+#### Kandji
+
+#### Hexnode
+
+#### Jumpcloud
+
 ### Python
 
 #### Python on Windows
