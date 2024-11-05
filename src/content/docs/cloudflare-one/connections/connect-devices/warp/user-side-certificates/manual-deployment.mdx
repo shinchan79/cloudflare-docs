@@ -305,11 +305,9 @@ For information on installing a Cloudflare certificate for organizations, refer 
 
 ### Mobile device management (MDM) software
 
-These steps require you to [download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
-
 #### Microsoft Intune
 
-To deploy a certificate to Microsoft Intune devices, you must convert your certificate and create a trusted certificate profile.
+To deploy a certificate to Microsoft Intune devices, you must convert your certificate and create a trusted certificate profile. These steps require you to [download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
 
 <Details header="macOS and Linux">
 
@@ -337,7 +335,12 @@ To deploy a certificate to Microsoft Intune devices, you must convert your certi
 
 </Details>
 
-#### Jamf
+#### Jamf Pro
+
+To upload and deploy a Cloudflare certificate in Jamf Pro:
+
+1. [Download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
+2. In Jamf Pro, [upload the certificate](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/SSL_Certificate.html).
 
 #### Kandji
 
