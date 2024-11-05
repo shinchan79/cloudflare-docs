@@ -305,6 +305,8 @@ For information on installing a Cloudflare certificate for organizations, refer 
 
 ### Mobile device management (MDM) software
 
+Zero Trust integrates with several [mobile device management (MDM) software partners](/cloudflare-one/connections/connect-devices/warp/deployment/mdm-deployment/partners/) to deploy WARP across devices.
+
 #### Microsoft Intune
 
 To deploy a certificate to Microsoft Intune devices, you must convert your certificate and create a trusted certificate profile. These steps require you to [download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
@@ -351,7 +353,12 @@ To upload and deploy a Cloudflare certificate in Kandji:
 
 #### Hexnode
 
-#### Jumpcloud
+To upload and deploy a Cloudflare certificate in Kandji:
+
+1. [Download a Cloudflare certificate](#download-the-cloudflare-root-certificate) in `.pem` format.
+2. In Hexnode, follow the directions for adding the certificate to [macOS](https://www.hexnode.com/mobile-device-management/help/how-to-add-certificates-for-mac-devices-with-hexnode-mdm/), [iOS](https://www.hexnode.com/mobile-device-management/help/add-certificates-for-ios-devices-with-hexnode-mdm/), and/or [Android](https://www.hexnode.com/mobile-device-management/help/how-to-add-certificates-for-android-devices-using-hexnode-mdm/) devices.
+
+#### JumpCloud
 
 ### Python
 
