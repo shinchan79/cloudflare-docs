@@ -51,7 +51,6 @@ nvm install 22
 node -v # print node.js version
 ```
 
-
 ## 1. Create a new Workers project.
 
 We will start by creating a new Workers project using the Wrangler CLI.
@@ -180,31 +179,36 @@ Now, we will create code files inside the 'src' directory to implement out funct
 		└───index.ts     <--- Entry point for request routing and presentation
 		└───contentDO.ts <--- Core business logic
 ```
+
+You can find source code for this project on: [GitHub](https://github.com/shinchan79/content-version-system.git). Here's the explanation of the main components in this project:
+
 **src/types.ts: Interface definitions for data structures**
-In this file, we will define data structures that will be used in the Durable Objects and the Worker. The purpose is to make sure that the data structures are consistent and more efficiently state management.
 
-Detailed code here:
+In this file, we will define data structures that will be used in the Durable Objects and the Worker. The purpose is to make sure that the data structures are consistent and more efficiently state management. 
 
-<details>
-<summary>src/types.ts</summary>
-Detailed code:
-
-```ts
+```
+/**
+ * Step 1: Core Version Statuses
+ * Define possible states of a content version
+ */
 export enum VersionStatus {
   DRAFT = 'draft',
   PUBLISHED = 'published',
   ARCHIVED = 'archived'
 }
 
+/**
+ * Step 2: Version & Tag Structures  
+ * Define core data structures for version management
+ */
 export interface Version {
   id: number;
   content: string;
   timestamp: string;
   message: string;
-  diff?: ContentDiff;
+  diff?: ContentDiff; // Will be defined in Step 4
   status: VersionStatus;
 }
-
 export interface Tag {
   name: string;
   versionId: number;
@@ -212,14 +216,22 @@ export interface Tag {
   updatedAt?: string;
 }
 
+/**
+ * Step 3: State Management
+ * Define how content versions and states are tracked
+ */
 export interface ContentState {
   currentVersion: number;
   versions: Version[];
   tags: { [key: string]: Tag };
   content: string | null;
-  publishHistory: PublishRecord[];
+  publishHistory: PublishRecord[]; // Will be defined in Step 5
 }
 
+/**
+ * Step 4: Change Tracking
+ * Structures for tracking differences between versions
+ */
 export interface ContentDiff {
   from: string;
   to: string;
@@ -239,57 +251,60 @@ export interface ContentDiff {
   }>;
 }
 
+/**
+ * Step 5: Publishing System
+ * Track publishing events and history
+ */
 export interface PublishRecord {
   versionId: number;
   publishedAt: string;
   publishedBy: string;
 }
 
-// Response types
+/**
+ * Step 6: API Response Types
+ * Standardized response structures for the API
+ */
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
-
 export interface DeleteVersionResponse {
   success: boolean;
   message: string;
 }
-
 export interface TagResponse {
   tagName: string;
   versionId: number;
 }
-
 export interface CurrentVersionResponse {
   version: number;
   content: string | null;
 }
-
+// Utility type for listing versions without full content
 export type VersionListItem = Omit<Version, 'content' | 'diff'>;
 ```
-</details>
-
 
 **src/index.ts: Entrypoint for request routing and presentation**
 
 In the flow of this file, Cloudflare Workers will acts as a router, route the incoming requests to the Durable Objects instance. The Durable Objects instance will process the request, and then provide the appropriate response.
 
-You can get detailed implement here:
-
-<details>
-<summary>src/index.ts</summary>
-Detailed code:
-
-```ts
+```
+/**
+ * Step 1: Setup and Imports
+ * Basic configuration for our Worker router
+ */
 import { ContentDO } from './contentDO';
 
 interface Env {
-  CONTENT: DurableObjectNamespace; //durable_objects.bindings name, match the name in wrangler.toml
+  CONTENT: DurableObjectNamespace;
 }
 
-// HTML template. This is used to display the published content when the user navigates to the root URL.
+/**
+ * Step 2: HTML Template & Styling. This is used to display the published content when the user navigates to the root URL.
+ * Note: For full HTML template and styling details, see the GitHub repository.
+ */
 const getHtmlTemplate = (content: string, message: string = '', timestamp: string = '') => `
 <!DOCTYPE html>
 <html lang="en">
@@ -298,40 +313,9 @@ const getHtmlTemplate = (content: string, message: string = '', timestamp: strin
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Content Version System</title>
     <style>
-        body {
-            font-family: system-ui, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .content {
-            background: #f5f5f5;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            white-space: pre-wrap;
-        }
-        .button {
-            background: #0070f3;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            margin-top: 20px;
-        }
-        .button:hover {
-            background: #0051a2;
-        }
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .meta {
-            color: #666;
-            font-size: 0.9em;
-            margin-bottom: 10px;
-        }
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .content { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .button { background: #0070f3; color: white; padding: 12px 24px; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -341,7 +325,6 @@ const getHtmlTemplate = (content: string, message: string = '', timestamp: strin
             <strong>Message:</strong> ${message}<br>
             <strong>Last Updated:</strong> ${new Date(timestamp).toLocaleString()}
         </div>
-        <h2>Current Content:</h2>
         <pre>${content}</pre>
     </div>
     <a href="http://localhost:3000" class="button">Content Version Management</a>
@@ -349,124 +332,100 @@ const getHtmlTemplate = (content: string, message: string = '', timestamp: strin
 </html>
 `;
 
-// CORS headers
+/**
+ * Step 3: CORS headers
+ */
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, OPTIONS, DELETE',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+/**
+ * Step 4: Version Management Helper
+ * Gets the latest published version of content
+ */
 // Helper function to get latest published version from Durable Objects
 async function getLatestPublishedVersion(contentDO: DurableObjectInstance, origin: string) {
   const versionsResponse = await contentDO.fetch(new Request(origin + '/content/default/versions'));
   const versions = await versionsResponse.json();
-
-  // Filter published versions and get the latest one
+	 // Filter published versions and get the latest one
   const publishedVersions = versions.filter((v: any) => v.status === 'published');
-  if (publishedVersions.length === 0) {
-    return null;
-  }
-
-  return publishedVersions.reduce((latest: any, current: any) =>
-    latest.id > current.id ? latest : current
-  );
+  return publishedVersions.length ? 
+    publishedVersions.reduce((latest: any, current: any) => latest.id > current.id ? latest : current) : 
+    null;
 }
 
 export { ContentDO };
 
+/**
+ * Step 5: Main Worker Handler
+ * Handles all incoming requests and routes them appropriately
+ */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const url = new URL(request.url);
 
+      // Handle CORS preflight
       if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
       }
-
-      // Get Durable Objects instance
+			// Get Durable Objects instance
       const doId = env.CONTENT.idFromName('default');
       const contentDO = env.CONTENT.get(doId);
 
-      // Root path - show HTML
+      // Handle root path - show HTML view
       if (url.pathname === '/') {
-        try {
-          const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
-
-          if (latestPublished) {
-            const contentResponse = await contentDO.fetch(
-              new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
-            );
-            const contentData = await contentResponse.json();
-
-            return new Response(
-              getHtmlTemplate(
-                contentData.content || 'No content available',
-                contentData.message,
-                contentData.timestamp
-              ), {
-                headers: { 'Content-Type': 'text/html' }
-              }
-            );
-          } else {
-            return new Response(getHtmlTemplate('No published content available', 'No published versions', ''), {
-              headers: { 'Content-Type': 'text/html' }
-            });
-          }
-        } catch (error) {
-          console.error('Root error:', error);
-          return new Response(getHtmlTemplate('Error loading content', 'Error occurred', ''), {
+        const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
+        
+        if (!latestPublished) {
+          return new Response(getHtmlTemplate('No published content', 'No versions', ''), {
             headers: { 'Content-Type': 'text/html' }
           });
         }
+
+        const contentResponse = await contentDO.fetch(
+          new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
+        );
+        const contentData = await contentResponse.json();
+
+        return new Response(
+          getHtmlTemplate(
+            contentData.content || 'No content available',
+            contentData.message,
+            contentData.timestamp
+          ), {
+            headers: { 'Content-Type': 'text/html' }
+          }
+        );
       }
 
       // Special handling for /content/default
       if (url.pathname === '/content/default') {
-        try {
-          const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
-
-          if (latestPublished) {
-            const contentResponse = await contentDO.fetch(
-              new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
-            );
-            const contentData = await contentResponse.json();
-
-            return new Response(JSON.stringify(contentData), {
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          } else {
-            return new Response(JSON.stringify({ error: 'No published content available' }), {
-              status: 404,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Content default error:', error);
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
+        const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
+        
+        if (!latestPublished) {
+          return new Response(JSON.stringify({ error: 'No published content' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
+
+        const contentResponse = await contentDO.fetch(
+          new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
+        );
+        return new Response(await contentResponse.text(), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
 
-      // Forward all other requests to Durable Objects
+      // Forward other requests to Durable Objects
       const response = await contentDO.fetch(request);
-
-      // Add CORS headers
       const newResponse = new Response(response.body, response);
       Object.entries(corsHeaders).forEach(([key, value]) => {
         newResponse.headers.set(key, value);
       });
-
       return newResponse;
 
     } catch (error) {
@@ -476,16 +435,12 @@ export default {
         message: error.message
       }), {
         status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
 };
 ```
-</details>
 
 **src/contentDO.ts: The core business logic**
 
@@ -495,51 +450,47 @@ This file allow you to perform Create - Update - Delete - Read operations  (CRUD
 - All operations are asynchronous because of storage communications
 - There are 2 important things you have to pay attention to: First, you need to setup the CORS headers to allow cross-origin requests. Second, the class name of the Durable Object must match the name defined in the wrangler.toml file (Otherwise, error when you run `wrangler deploy` command).
 
-Detailed code is as below:
-
-<details>
-<summary>scr/contentDO.ts</summary>
-Detailed code:
-
-```ts
+```
+/**
+ * Step 1: Initial Setup & CORS Configuration
+ * You will need to set up CORS headers (cross-origin requests) for your application to work properly with Durable Objects.
+ */
 import { createPatch } from 'diff';
 import { ContentDiff, ContentState, Version, PublishRecord, VersionStatus, Tag } from './types';
 
-// You will need to set up CORS headers (cross-origin requests) for your application to work properly with Durable Objects.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
-// Durable Objects State. Note that the name of the class have to match the name of the Durable Object defined
-// in the wrangler.toml file.
+
+/**
+ * Step 2: Durable Object Class Setup
+ * Note: Note that the name of the class have to match the name of the Durable Object defined in the wrangler.toml file.
+ */
 export class ContentDO {
   private state: DurableObjectState;
   private env: any;
-
 	// Durable Objects state instance and environment variables are passed to the constructor
   constructor(state: DurableObjectState, env: any) {
     this.state = state;
     this.env = env;
   }
 
-  // Entry point for requests to the Durable Object
+  /**
+   * Step 3: Request Handler & Router
+   * Entry point for requests to the Durable Object
+   */
   async fetch(request: Request): Promise<Response> {
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders
-      });
+      return new Response(null, { headers: corsHeaders });
     }
 
     try {
       const url = new URL(request.url);
       const parts = url.pathname.split('/').filter(Boolean);
-
-      console.log('ContentDO handling request:', request.method, url.pathname);
-      console.log('Parts:', parts);
-
       const response = await this.handleRequest(request, parts);
-
+      
       Object.entries(corsHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
       });
@@ -547,105 +498,82 @@ export class ContentDO {
       return response;
     } catch (err) {
       const error = err as Error;
-      console.error('Error:', error);
-      return new Response(error.message, {
-        status: 500,
-        headers: corsHeaders
-      });
+      return new Response(error.message, { status: 500, headers: corsHeaders });
     }
   }
 
+  /**
+   * Step 4: Route Management
+   * Maps API endpoints to their handlers
+   */
   private async handleRequest(request: Request, parts: string[]): Promise<Response> {
     const path = parts.join('/');
-    console.log('Handling path:', request.method, path);
-
+    
     switch (`${request.method} ${path}`) {
+      // Version Management Routes
       case 'POST content': {
         const { content, message } = await request.json();
-        const version = await this.createVersion(content, message);
-        return Response.json(version);
+        return Response.json(await this.createVersion(content, message));
       }
       case 'GET content/default': {
         const data = await this.initialize();
-        if (!data.currentVersion) {
-          return Response.json(null);
-        }
-        const version = await this.getVersion(data.currentVersion);
-        return Response.json(version);
+        if (!data.currentVersion) return Response.json(null);
+        return Response.json(await this.getVersion(data.currentVersion));
       }
       case 'GET content/default/versions': {
-        const versions = await this.getVersions();
-        return Response.json(versions);
+        return Response.json(await this.getVersions());
       }
       case `GET content/default/versions/${parts[3]}`: {
-        const version = await this.getVersion(parseInt(parts[3]));
-        return Response.json(version);
+        return Response.json(await this.getVersion(parseInt(parts[3])));
       }
       case `DELETE content/default/versions/${parts[3]}`: {
-        const versionId = parseInt(parts[3]);
-        const result = await this.deleteVersion(versionId);
-        return Response.json(result);
+        return Response.json(await this.deleteVersion(parseInt(parts[3])));
       }
-      case 'GET content/versions/tags': {
-        const tags = await this.getTags();
-        return Response.json(tags);
-      }
-      case `GET content/versions/${parts[2]}/tags`: {
-        const versionId = parseInt(parts[2]);
-        const tags = await this.getVersionTags(versionId);
-        return Response.json(tags);
-      }
+      // Tag Management Routes
       case 'POST content/versions/tags': {
         const { versionId, name } = await request.json();
-        const tag = await this.createTag(versionId, name);
-        return Response.json(tag);
+        return Response.json(await this.createTag(versionId, name));
+      }
+      case 'GET content/versions/tags': {
+        return Response.json(await this.getTags());
       }
       case `PUT content/versions/tags/${parts[3]}`: {
         const { newName } = await request.json();
-        const tag = await this.updateTag(parts[3], newName);
-        return Response.json(tag);
+        return Response.json(await this.updateTag(parts[3], newName));
       }
-      case `DELETE content/versions/tags/${parts[3]}`: {
-        const result = await this.deleteTag(parts[3]);
-        return Response.json(result);
-      }
+      // Publishing Routes
       case `POST content/default/versions/${parts[3]}/publish`: {
         const { publishedBy } = await request.json();
-        const result = await this.publishVersion(parseInt(parts[3]), publishedBy);
-        return Response.json(result);
-      }
-      case `POST content/default/versions/${parts[3]}/unpublish`: {
-        const result = await this.unpublishVersion(parseInt(parts[3]));
-        return Response.json(result);
+        return Response.json(await this.publishVersion(parseInt(parts[3]), publishedBy));
       }
       case 'GET content/default/publish-history': {
-        const history = await this.getPublishHistory();
-        return Response.json(history);
+        return Response.json(await this.getPublishHistory());
       }
+      // Version Control Routes 
       case `GET content/default/versions/${parts[3]}/diff`: {
         const compareToId = parseInt(new URL(request.url).searchParams.get('compare') || '0');
-        if (compareToId) {
-          return await this.getDiff(parseInt(parts[3]), compareToId);
-        }
-        const diff = await this.compareVersions(parseInt(parts[3]), parseInt(parts[3]) - 1);
-        return Response.json(diff);
+        return await this.getDiff(parseInt(parts[3]), compareToId || parseInt(parts[3]) - 1);
       }
       case `POST content/default/revert`: {
         const { versionId } = await request.json();
-        const version = await this.revertTo(versionId);
-        return Response.json(version);
+        return Response.json(await this.revertTo(versionId));
       }
       default:
-        return new Response('No route matched: ' + request.method + ' ' + path, { status: 404 });
+        return new Response('No route matched', { status: 404 });
     }
   }
 
-	// Initialize or get existing state from Durable Objects storage
+  /**
+   * Step 5: Core Version Control Functions
+   * Main functionality for version management
+   * For complete implementation details, see GitHub repository
+   */
+  // Initialize or get existing state from Durable Objects storage
   private async initialize(): Promise<ContentState> {
-		// Get existing state from Durable Objects storage
+    // Get existing state from Durable Objects storage
     const stored = await this.state.storage.get<ContentState>("content");
     if (!stored) {
-			// Initialize the state if not existed
+      // Initialize the state if not existed
       const initialData: ContentState = {
         currentVersion: 0,
         versions: [],
@@ -653,17 +581,15 @@ export class ContentDO {
         content: null,
         publishHistory: []
       };
-			// Store state to Durabe Objects storage
+      // Store state to Durabe Objects storage
       await this.state.storage.put("content", initialData);
       return initialData;
     }
     return stored;
   }
-
-	// Get current state from Durable Object storage
+	// Get current state from Durable Object storage & Update the state with new version
   async createVersion(content: string, message: string = ""): Promise<Version> {
     const data = await this.initialize();
-
     const newVersion: Version = {
       id: data.versions.length + 1,
       content,
@@ -672,7 +598,7 @@ export class ContentDO {
       status: VersionStatus.DRAFT,
       diff: data.content ? this.calculateDetailedDiff(data.content, content) : null
     };
-		// Update the state with new version
+    
     data.versions.push(newVersion);
     data.currentVersion = newVersion.id;
     data.content = content;
@@ -694,243 +620,165 @@ export class ContentDO {
   async deleteVersion(id: number): Promise<{ success: boolean; message: string }> {
     const data = await this.initialize();
     const versionIndex = data.versions.findIndex(v => v.id === id);
-
-    if (versionIndex === -1) {
-      throw new Error("Version not found");
-    }
+    if (versionIndex === -1) throw new Error("Version not found");
 
     data.versions.splice(versionIndex, 1);
-
     if (data.currentVersion === id) {
       const lastVersion = data.versions[data.versions.length - 1];
       data.currentVersion = lastVersion ? lastVersion.id : 0;
       data.content = lastVersion ? lastVersion.content : null;
     }
 
-    Object.entries(data.tags).forEach(([tagName, tag]) => {
-      if (tag.versionId === id) {
-        delete data.tags[tagName];
-      }
-    });
-
     await this.state.storage.put("content", data);
-
-    return {
-      success: true,
-      message: `Version ${id} deleted successfully`
-    };
+    return { success: true, message: `Version ${id} deleted successfully` };
   }
 
-  async getTags(): Promise<Tag[]> {
-    const data = await this.initialize();
-    return Object.values(data.tags);
-  }
-
-  async getVersionTags(versionId: number): Promise<Tag[]> {
-    const data = await this.initialize();
-    return Object.values(data.tags).filter(tag => tag.versionId === versionId);
-  }
-
+  /**
+   * Step 6: Tag Management System
+   * Functions for managing version tags
+   */
   async createTag(versionId: number, name: string): Promise<Tag> {
     const data = await this.initialize();
-
     const version = data.versions.find(v => v.id === versionId);
-    if (!version) {
-      throw new Error("Version not found");
-    }
-
-    if (data.tags[name]) {
-      throw new Error("Tag name already exists");
-    }
+    if (!version) throw new Error("Version not found");
+    if (data.tags[name]) throw new Error("Tag exists");
 
     const newTag: Tag = {
       name,
       versionId,
       createdAt: new Date().toISOString()
     };
-
     data.tags[name] = newTag;
     await this.state.storage.put("content", data);
     return newTag;
   }
 
+  async getTags(): Promise<Tag[]> {
+    const data = await this.initialize();
+    return Object.values(data.tags);
+  }
+  async getVersionTags(versionId: number): Promise<Tag[]> {
+    const data = await this.initialize();
+    return Object.values(data.tags).filter(tag => tag.versionId === versionId);
+  }
+
   async updateTag(oldName: string, newName: string): Promise<Tag> {
     const data = await this.initialize();
-
     const oldTag = data.tags[oldName];
-    if (!oldTag) {
-      throw new Error("Tag not found");
-    }
+    if (!oldTag) throw new Error("Tag not found");
+    if (oldName !== newName && data.tags[newName]) throw new Error("New tag exists");
 
-    if (oldName !== newName && data.tags[newName]) {
-      throw new Error("New tag name already exists");
-    }
-
-    const updatedTag: Tag = {
+    const updatedTag = {
       ...oldTag,
       name: newName,
       updatedAt: new Date().toISOString()
     };
-
     delete data.tags[oldName];
     data.tags[newName] = updatedTag;
-
     await this.state.storage.put("content", data);
     return updatedTag;
   }
 
-  async deleteTag(name: string): Promise<{ success: boolean; message: string }> {
-    const data = await this.initialize();
-
-    if (!data.tags[name]) {
-      throw new Error("Tag not found");
-    }
-
-    delete data.tags[name];
-    await this.state.storage.put("content", data);
-
-    return {
-      success: true,
-      message: `Tag ${name} deleted successfully`
-    };
-  }
-
+  /**
+   * Step 7: Publishing System
+   * Manage content publishing workflow
+   */
   async publishVersion(versionId: number, publishedBy: string): Promise<PublishRecord> {
     const data = await this.initialize();
-
     const version = data.versions.find(v => v.id === versionId);
-    if (!version) {
-      throw new Error("Version not found");
-    }
+    if (!version) throw new Error("Version not found");
 
-    data.versions = data.versions.map(v => ({
-      ...v,
-      status: v.id === versionId ? VersionStatus.PUBLISHED : VersionStatus.DRAFT
-    }));
-
+    // Publishing logic - See GitHub for complete implementation
     const publishRecord: PublishRecord = {
       versionId,
       publishedAt: new Date().toISOString(),
       publishedBy
     };
-
-    if (!data.publishHistory) {
-      data.publishHistory = [];
-    }
-    data.publishHistory.push(publishRecord);
-
-    data.currentVersion = versionId;
-    data.content = version.content;
-
+    data.publishHistory = [...(data.publishHistory || []), publishRecord];
     await this.state.storage.put("content", data);
     return publishRecord;
-  }
-
-  async unpublishVersion(versionId: number): Promise<Version> {
-    const data = await this.initialize();
-
-    const version = data.versions.find(v => v.id === versionId);
-    if (!version) {
-      throw new Error("Version not found");
-    }
-
-    data.versions = data.versions.map(v => ({
-      ...v,
-      status: v.id === versionId ? VersionStatus.DRAFT : v.status
-    }));
-
-    if (data.publishHistory) {
-      data.publishHistory = data.publishHistory.filter(
-        record => record.versionId !== versionId
-      );
-    }
-
-    if (data.currentVersion === versionId) {
-      data.currentVersion = 0;
-      data.content = null;
-    }
-
-    await this.state.storage.put("content", data);
-
-    const updatedVersion = data.versions.find(v => v.id === versionId);
-    if (!updatedVersion) {
-      throw new Error("Failed to get updated version");
-    }
-
-    return updatedVersion;
   }
 
   async getPublishHistory(): Promise<PublishRecord[]> {
     const data = await this.initialize();
     return data.publishHistory || [];
   }
+  // Unpublish a version
+  async unpublishVersion(versionId: number): Promise<Version> {
+    const data = await this.initialize();
+    const version = data.versions.find(v => v.id === versionId);
+    if (!version) {
+      throw new Error("Version not found");
+    }
+    data.versions = data.versions.map(v => ({
+      ...v,
+      status: v.id === versionId ? VersionStatus.DRAFT : v.status
+    }));
+    if (data.publishHistory) {
+      data.publishHistory = data.publishHistory.filter(
+        record => record.versionId !== versionId
+      );
+    }
+    if (data.currentVersion === versionId) {
+      data.currentVersion = 0;
+      data.content = null;
+    }
+    await this.state.storage.put("content", data);
+    const updatedVersion = data.versions.find(v => v.id === versionId);
+    if (!updatedVersion) {
+      throw new Error("Failed to get updated version");
+    }
+    return updatedVersion;
+  }
+  async getPublishHistory(): Promise<PublishRecord[]> {
+    const data = await this.initialize();
+    return data.publishHistory || [];
+  }
 
+  /**
+   * Step 8: Diff & Version Comparison
+   * Functions for comparing different versions
+   * See GitHub repository for complete diff implementation details
+   */
   async compareVersions(fromId: number, toId: number): Promise<ContentDiff> {
     const data = await this.initialize();
-
     const fromVersion = data.versions.find(v => v.id === fromId);
     const toVersion = data.versions.find(v => v.id === toId);
-
     if (!fromVersion || !toVersion) {
       throw new Error("Version not found");
     }
-
     return this.calculateDetailedDiff(fromVersion.content, toVersion.content);
   }
 
   private calculateDetailedDiff(oldContent: string, newContent: string): ContentDiff {
-    const patch = createPatch('content',
-      oldContent,
-      newContent,
-      'old version',
-      'new version'
-    );
-
-    const oldLines = oldContent.split('\n');
-    const newLines = newContent.split('\n');
-
+    const patch = createPatch('content', oldContent, newContent, 'old', 'new');
     return {
       from: oldContent,
       to: newContent,
       changes: {
-        additions: newLines.length - oldLines.length,
-        deletions: Math.max(0, oldLines.length - newLines.length),
-        totalChanges: Math.abs(newLines.length - oldLines.length),
+        additions: newContent.split('\n').length - oldContent.split('\n').length,
+        deletions: Math.max(0, oldContent.split('\n').length - newContent.split('\n').length),
+        totalChanges: Math.abs(newContent.split('\n').length - oldContent.split('\n').length),
         timestamp: new Date().toISOString()
       },
-      patch: patch,
+      patch,
       hunks: []
     };
   }
 
-  async getDiff(fromVersionId: number, toVersionId: number): Promise<Response> {
+  async getDiff(fromId: number, toId: number): Promise<Response> {
     const data = await this.initialize();
-    const fromVersion = data.versions.find(v => v.id === fromVersionId);
-    const toVersion = data.versions.find(v => v.id === toVersionId);
+    const fromVersion = data.versions.find(v => v.id === fromId);
+    const toVersion = data.versions.find(v => v.id === toId);
+    if (!fromVersion || !toVersion) throw new Error("Version not found");
 
-    if (!fromVersion || !toVersion) {
-      throw new Error("Version not found");
-    }
-
-    const formattedDiff = [
-      `Comparing Version ${fromVersion.id} -> Version ${toVersion.id}`,
-      `From: ${fromVersion.message}`,
-      `To: ${toVersion.message}`,
-      '\nContent in Version ' + fromVersion.id + ':',
-      fromVersion.content,
-      '\nContent in Version ' + toVersion.id + ':',
-      toVersion.content,
-      '\nDifferences:',
-      '===================================================================',
-      createPatch('content.txt',
-        fromVersion.content || '',
-        toVersion.content || '',
-        `Version ${fromVersion.id} (${fromVersion.message})`,
-        `Version ${toVersion.id} (${toVersion.message})`
-      )
-    ].join('\n');
-
-    return new Response(formattedDiff, {
+    // See GitHub repository for complete diff formatting implementation
+    return new Response(createPatch('content.txt',
+      fromVersion.content || '',
+      toVersion.content || '',
+      `Version ${fromVersion.id}`,
+      `Version ${toVersion.id}`
+    ), {
       headers: {
         'Content-Type': 'text/plain',
         'Access-Control-Allow-Origin': '*',
@@ -938,21 +786,18 @@ export class ContentDO {
     });
   }
 
+  /**
+   * Step 9: Version Control Operations
+   * Additional version control features
+   */
   async revertTo(versionId: number): Promise<Version> {
     const data = await this.initialize();
     const targetVersion = data.versions.find(v => v.id === versionId);
-    if (!targetVersion) {
-      throw new Error("Version not found");
-    }
-
-    return await this.createVersion(
-      targetVersion.content,
-      `Reverted to version ${versionId}`
-    );
+    if (!targetVersion) throw new Error("Version not found");
+    return this.createVersion(targetVersion.content, `Reverted to version ${versionId}`);
   }
 }
 ```
-</details>
 
 ## 3. Test and deploy your project
 
