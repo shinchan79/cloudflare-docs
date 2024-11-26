@@ -13,9 +13,9 @@ languages:
 
 import { Render, PackageManagers } from "~/components";
 
-This tutorial will show you the steps to develop a Content Version Management System – the concept is somewhat like Git, but for the content – with the help of Cloudflare Workers and Durable Objects.
+Version Control Systems allow you record several versions of a project or file, which can be backtracked to at any point in time. Git is an example of a version control system.
 
-An important advantage concerning Content Versioning Management System is that content can have several versions, which can always be backtracked to at any point in time. In this tutorial, the content will be and the versions will be Cloudflare Durable Objects so it will not use any database. If you don't have a clear knowledge of Durable Objects, check the Cloudflare Durable Objects documentation for more details on Cloudflare Durable Objects [here](/durable-objects/).
+In this tutorial, you will build a version control system powered by Cloudflare that can track changes made to content such as files of text or code. Cloudflare Workers will be used to handle functions such as creating versions for content, and Durable Objects will be used to record version states.
 
 The functions which we will be covering in this tutorial are as follows:
 - Create a new content
