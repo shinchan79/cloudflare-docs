@@ -285,7 +285,8 @@ export interface CurrentVersionResponse {
 // Utility type for listing versions without full content
 export type VersionListItem = Omit<Version, 'content' | 'diff'>;
 ```
-
+ ## 3. Handle requests sent to the Durable Object
+ 
 **src/index.ts: Entrypoint for request routing and presentation**
 
 Cloudflare Workers will route incoming requests to the Durable Objects instance. The Durable Objects instance then processes the request, and provides the appropriate response to the Worker.
