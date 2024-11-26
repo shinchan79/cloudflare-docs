@@ -181,7 +181,14 @@ You can find source code for this project on: [GitHub](https://github.com/shinch
 
 **src/types.ts: Interface definitions for data structures**
 
-In this file, we will define data structures that will be used in the Durable Objects and the Worker. The purpose is to make sure that the data structures are consistent and more efficiently state management. 
+The data structures that will be used by the Durable Object and the Worker to handle state management must first be defined. In this step the following data will be defined:
+
+- The different states a content version can have (`draft`, `published` and `archived`).
+- The core data structure for version management, such as a version id number, the contained content and the attached version message.
+- The data structure to track version events and history.
+- The API response structure.
+
+Add the following code to the `src/types.ts` file:
 
 ```
 /**
