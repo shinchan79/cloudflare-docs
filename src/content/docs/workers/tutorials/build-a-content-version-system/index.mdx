@@ -29,17 +29,11 @@ The functions which we will be covering in this tutorial are as follows:
 
 ## Prerequisites
 
-To complete this tutorial, you only neeed:
-
 <Render file="prereqs" product="workers" />
 
 A Cloudflare account with a [Workers Paid plan](/workers/platform/pricing/#workers) is required so that you can use Durable Objects.
 
-If you have not already installed needed tools, you can follow the instructions in the part 0. Install tools below.
-
 ## 1. Set up Worker project and Durable Objects
-
-
 
 To create a Worker project that is ready to use Durable Objects, run [C3 (create-cloudflare-cli)](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare) in your CLI.
 
@@ -49,7 +43,8 @@ cd content-version-system
 
 npm create cloudflare@latest
 ```
-When you run the command above, you will be asked to provide some information about your project. You can use the following values:
+
+After running the command above, you will be asked to provide information on what kind of project you would like to create. Use the following values:
 
 ```sh
 Ok to proceed? (y) y
@@ -68,13 +63,17 @@ In which directory do you want to create your application?
 ├ Do you want to deploy your application?
 │ no
 ```
-After done, we will have a new Workers project with the name `content-version-system` that contains following files and directories:
+
+### Configure the Worker and Durable Object binding
+
+Once `C3` has finished running, you should now have Workers project with the name `content-version-system` that contains Cloudflare's development tool [Wrangler](/workers/wrangler/) along following files and directories:
+
 ```sh
 ~/content-version-system/content-version-system# ls
 
 node_modules  package.json  package-lock.json  src  tsconfig.json  worker-configuration.d.ts  wrangler.toml
 ```
-We will modify the `wrangler.toml` file to specify our configuration for the Durable Objects.
+Modify the `wrangler.toml` configuration file by adding a Durable Objects binding that enables the Worker application to communicate with the Durable Object.
 
 ```toml title="wrangler.toml"
 name = "content-version-system"
@@ -95,6 +94,23 @@ class_name = "ContentDO"
 tag = "v1"
 new_classes = ["ContentDO"]
 ```
+
+### Install required packages
+
+List of packages that will be used in this project:
+
+- `diff` - A text diffing implementation for JavaScript
+- `itty-router` - A tiny, zero-dependency router designed for Cloudflare Workers
+- `@cloudflare/workers-types` - TypeScript type definitions for Cloudflare Workers
+- `@types/diff` - TypeScript type definitions for the diff package
+- `@typescript-eslint/eslint-plugin` - ESLint plugin for TypeScript
+- `@typescript-eslint/parser` - Parser for TypeScript files in ESLint
+- `eslint` - JavaScript/TypeScript linter
+- `prettier` - Code formatter
+- `typescript` - TypeScript compiler and language tools
+- `vitest` - Unit testing framework
+- `wrangler` - Cloudflare Workers CLI and development tool
+
 Replace the `package.json` with following content:
 
 ```json
@@ -129,9 +145,14 @@ Replace the `package.json` with following content:
   }
 }
 ```
-then run `npm install` to install the dependencies.
+Then run `npm install` to install the dependencies.
+
+### Configure tsconfig.json file
+
+The tsconfig.json file needs to be updated to ensure proper TypeScript compilation and compatibility with the project dependencies, particularly for Cloudflare Workers types and module resolution.
 
 Edit the content of the `tsconfig.json` file:
+
 ```json
 {
     "compilerOptions": {
@@ -159,6 +180,11 @@ Edit the content of the `tsconfig.json` file:
 }
 ```
 
+You can find source code for this project on: [GitHub](https://github.com/shinchan79/content-version-system.git). Next parts will explain the main components of this project.
+
+
+## 2. Define the data structures for a version control system
+
 Now, we will create code files inside the 'src' directory to implement out functions. File structute will be as follows:
 
 ```sh
@@ -167,10 +193,6 @@ Now, we will create code files inside the 'src' directory to implement out funct
 		└───index.ts     <--- Entry point for request routing and presentation
 		└───contentDO.ts <--- Core business logic
 ```
-
-You can find source code for this project on: [GitHub](https://github.com/shinchan79/content-version-system.git). Here's the explanation of the main components in this project:
-
-**src/types.ts: Interface definitions for data structures**
 
 The data structures that will be used by the Durable Object and the Worker to handle state management must first be defined. In this step the following data will be defined:
 
@@ -182,28 +204,23 @@ The data structures that will be used by the Durable Object and the Worker to ha
 Add the following code to the `src/types.ts` file:
 
 ```
-/**
- * Step 1: Core Version Statuses
- * Define possible states of a content version
- */
+// Core version statuses - Define possible states of a content version
 export enum VersionStatus {
   DRAFT = 'draft',
   PUBLISHED = 'published',
   ARCHIVED = 'archived'
 }
 
-/**
- * Step 2: Version & Tag Structures  
- * Define core data structures for version management
- */
+// Version & tag structures - Define core data structures for version management
 export interface Version {
   id: number;
   content: string;
   timestamp: string;
   message: string;
-  diff?: ContentDiff; // Will be defined in Step 4
+  diff?: ContentDiff;
   status: VersionStatus;
 }
+
 export interface Tag {
   name: string;
   versionId: number;
@@ -211,22 +228,16 @@ export interface Tag {
   updatedAt?: string;
 }
 
-/**
- * Step 3: State Management
- * Define how content versions and states are tracked
- */
+// State management - Define how content versions and states are tracked
 export interface ContentState {
   currentVersion: number;
   versions: Version[];
   tags: { [key: string]: Tag };
   content: string | null;
-  publishHistory: PublishRecord[]; // Will be defined in Step 5
+  publishHistory: PublishRecord[];
 }
 
-/**
- * Step 4: Change Tracking
- * Structures for tracking differences between versions
- */
+// Change tracking - tracking differences between versions
 export interface ContentDiff {
   from: string;
   to: string;
@@ -246,63 +257,54 @@ export interface ContentDiff {
   }>;
 }
 
-/**
- * Step 5: Publishing System
- * Track publishing events and history
- */
+// Publishing system - Track publishing events and history
 export interface PublishRecord {
   versionId: number;
   publishedAt: string;
   publishedBy: string;
 }
 
-/**
- * Step 6: API Response Types
- * Standardized response structures for the API
- */
+// API response types - Standardized response structures for the API
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
+
 export interface DeleteVersionResponse {
   success: boolean;
   message: string;
 }
+
 export interface TagResponse {
   tagName: string;
   versionId: number;
 }
+
 export interface CurrentVersionResponse {
   version: number;
   content: string | null;
 }
-// Utility type for listing versions without full content
+
 export type VersionListItem = Omit<Version, 'content' | 'diff'>;
 ```
- ## 3. Handle requests sent to the Durable Object
- 
-**src/index.ts: Entrypoint for request routing and presentation**
+
+## 3. Handle requests sent to the Durable Object
 
 Cloudflare Workers will route incoming requests to the Durable Objects instance. The Durable Objects instance then processes the request, and provides the appropriate response to the Worker.
 
 To handle incoming requests, add the following code to `src/index.ts`:
 
+### Initial Setup and HTML Template
 ```
-/**
- * Step 1: Setup and Imports
- * Basic configuration for our Worker router
- */
 import { ContentDO } from './contentDO';
 
 interface Env {
   CONTENT: DurableObjectNamespace;
 }
 
-/**
- * Step 2: HTML Template & Styling. This is used to display the published content when the user navigates to the root URL.
- * Note: For full HTML template and styling details, see the GitHub repository.
- */
+// HTML Template & Styling. This is used to display the published content when the user navigates to the root URL.
+// For full HTML template and styling details, see the GitHub repository.
 const getHtmlTemplate = (content: string, message: string = '', timestamp: string = '') => `
 <!DOCTYPE html>
 <html lang="en">
@@ -329,60 +331,54 @@ const getHtmlTemplate = (content: string, message: string = '', timestamp: strin
 </body>
 </html>
 `;
+```
+### CORS and Helper Functions
 
-/**
- * Step 3: CORS headers
- */
+You need to set up CORS headers to allow cross-origin requests. Add CORS headers and version management helper as below:
+
+```
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, OPTIONS, DELETE',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-/**
- * Step 4: Version Management Helper
- * Gets the latest published version of content
- */
 // Helper function to get latest published version from Durable Objects
 async function getLatestPublishedVersion(contentDO: DurableObjectInstance, origin: string) {
   const versionsResponse = await contentDO.fetch(new Request(origin + '/content/default/versions'));
   const versions = await versionsResponse.json();
-	 // Filter published versions and get the latest one
   const publishedVersions = versions.filter((v: any) => v.status === 'published');
   return publishedVersions.length ? 
     publishedVersions.reduce((latest: any, current: any) => latest.id > current.id ? latest : current) : 
     null;
 }
+```
+### Request Handler
 
+The following code will handle the main requests.
+
+```
 export { ContentDO };
 
-/**
- * Step 5: Main Worker Handler
- * Handles all incoming requests and routes them appropriately
- */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const url = new URL(request.url);
-
       // Handle CORS preflight
       if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
       }
-			// Get Durable Objects instance
+      // Get Durable Objects instance
       const doId = env.CONTENT.idFromName('default');
       const contentDO = env.CONTENT.get(doId);
-
       // Handle root path - show HTML view
       if (url.pathname === '/') {
         const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
-        
         if (!latestPublished) {
           return new Response(getHtmlTemplate('No published content', 'No versions', ''), {
             headers: { 'Content-Type': 'text/html' }
           });
         }
-
         const contentResponse = await contentDO.fetch(
           new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
         );
@@ -402,14 +398,12 @@ export default {
       // Special handling for /content/default
       if (url.pathname === '/content/default') {
         const latestPublished = await getLatestPublishedVersion(contentDO, url.origin);
-        
         if (!latestPublished) {
           return new Response(JSON.stringify({ error: 'No published content' }), {
             status: 404,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
-
         const contentResponse = await contentDO.fetch(
           new Request(`${url.origin}/content/default/versions/${latestPublished.id}`)
         );
@@ -425,7 +419,6 @@ export default {
         newResponse.headers.set(key, value);
       });
       return newResponse;
-
     } catch (error) {
       console.error('Worker error:', error);
       return new Response(JSON.stringify({
@@ -440,366 +433,272 @@ export default {
 };
 ```
 
-**src/contentDO.ts: The core business logic**
+## 4. Build the core version control system logic
 
-This file allow you to perform Create - Update - Delete - Read operations  (CRUD) operations on the content versions and the version tags. Additionally, it is possible to either publish or unpublish a version, obtain detailed information on the modification history, compare versions (similar to the git `diff command`), and go back to a particular version.
-- All the states are recorded in the Durable Object storage overriding the necessity of instantiating a database instance.
-- Flows of operation: reading the state → making changes → writing the changes
+To handle version control functions, add the following code to `src/contentDO.ts`:
+
+This file allow you to perform Create - Update - Delete - Read (CRUD) operations on the content versions and the version tags. Additionally, it is possible to either publish or unpublish a version, obtain detailed information on the modification history, compare versions (similar to the git `diff command`), and go back to a particular version.
+- All the states are recorded in the Durable Object storage.
+- Operations occur in the following order: read the state → process changes → write the changes.
 - All operations are asynchronous because of storage communications
 - There are 2 important things you have to pay attention to: First, you need to setup the CORS headers to allow cross-origin requests. Second, the class name of the Durable Object must match the name defined in the wrangler.toml file (Otherwise, error when you run `wrangler deploy` command).
 
+### Initial Setup and Class Definition
+
 ```
-/**
- * Step 1: Initial Setup & CORS Configuration
- * You will need to set up CORS headers (cross-origin requests) for your application to work properly with Durable Objects.
- */
 import { createPatch } from 'diff';
 import { ContentDiff, ContentState, Version, PublishRecord, VersionStatus, Tag } from './types';
-
+// You will need to set up CORS headers (cross-origin requests) for your application to work properly with Durable Objects.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
-
-/**
- * Step 2: Durable Object Class Setup
- * Note: Note that the name of the class have to match the name of the Durable Object defined in the wrangler.toml file.
- */
+// Note that the name of the class have to match the name of the Durable Object defined in the wrangler.toml file.
 export class ContentDO {
   private state: DurableObjectState;
   private env: any;
-	// Durable Objects state instance and environment variables are passed to the constructor
+
   constructor(state: DurableObjectState, env: any) {
     this.state = state;
     this.env = env;
   }
-
-  /**
-   * Step 3: Request Handler & Router
-   * Entry point for requests to the Durable Object
-   */
-  async fetch(request: Request): Promise<Response> {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
-
-    try {
-      const url = new URL(request.url);
-      const parts = url.pathname.split('/').filter(Boolean);
-      const response = await this.handleRequest(request, parts);
-      
-      Object.entries(corsHeaders).forEach(([key, value]) => {
-        response.headers.set(key, value);
-      });
-
-      return response;
-    } catch (err) {
-      const error = err as Error;
-      return new Response(error.message, { status: 500, headers: corsHeaders });
-    }
-  }
-
-  /**
-   * Step 4: Route Management
-   * Maps API endpoints to their handlers
-   */
-  private async handleRequest(request: Request, parts: string[]): Promise<Response> {
-    const path = parts.join('/');
-    
-    switch (`${request.method} ${path}`) {
-      // Version Management Routes
-      case 'POST content': {
-        const { content, message } = await request.json();
-        return Response.json(await this.createVersion(content, message));
-      }
-      case 'GET content/default': {
-        const data = await this.initialize();
-        if (!data.currentVersion) return Response.json(null);
-        return Response.json(await this.getVersion(data.currentVersion));
-      }
-      case 'GET content/default/versions': {
-        return Response.json(await this.getVersions());
-      }
-      case `GET content/default/versions/${parts[3]}`: {
-        return Response.json(await this.getVersion(parseInt(parts[3])));
-      }
-      case `DELETE content/default/versions/${parts[3]}`: {
-        return Response.json(await this.deleteVersion(parseInt(parts[3])));
-      }
-      // Tag Management Routes
-      case 'POST content/versions/tags': {
-        const { versionId, name } = await request.json();
-        return Response.json(await this.createTag(versionId, name));
-      }
-      case 'GET content/versions/tags': {
-        return Response.json(await this.getTags());
-      }
-      case `PUT content/versions/tags/${parts[3]}`: {
-        const { newName } = await request.json();
-        return Response.json(await this.updateTag(parts[3], newName));
-      }
-      // Publishing Routes
-      case `POST content/default/versions/${parts[3]}/publish`: {
-        const { publishedBy } = await request.json();
-        return Response.json(await this.publishVersion(parseInt(parts[3]), publishedBy));
-      }
-      case 'GET content/default/publish-history': {
-        return Response.json(await this.getPublishHistory());
-      }
-      // Version Control Routes 
-      case `GET content/default/versions/${parts[3]}/diff`: {
-        const compareToId = parseInt(new URL(request.url).searchParams.get('compare') || '0');
-        return await this.getDiff(parseInt(parts[3]), compareToId || parseInt(parts[3]) - 1);
-      }
-      case `POST content/default/revert`: {
-        const { versionId } = await request.json();
-        return Response.json(await this.revertTo(versionId));
-      }
-      default:
-        return new Response('No route matched', { status: 404 });
-    }
-  }
-
-  /**
-   * Step 5: Core Version Control Functions
-   * Main functionality for version management
-   * For complete implementation details, see GitHub repository
-   */
-  // Initialize or get existing state from Durable Objects storage
-  private async initialize(): Promise<ContentState> {
-    // Get existing state from Durable Objects storage
-    const stored = await this.state.storage.get<ContentState>("content");
-    if (!stored) {
-      // Initialize the state if not existed
-      const initialData: ContentState = {
-        currentVersion: 0,
-        versions: [],
-        tags: {},
-        content: null,
-        publishHistory: []
-      };
-      // Store state to Durabe Objects storage
-      await this.state.storage.put("content", initialData);
-      return initialData;
-    }
-    return stored;
-  }
-	// Get current state from Durable Object storage & Update the state with new version
-  async createVersion(content: string, message: string = ""): Promise<Version> {
-    const data = await this.initialize();
-    const newVersion: Version = {
-      id: data.versions.length + 1,
-      content,
-      timestamp: new Date().toISOString(),
-      message,
-      status: VersionStatus.DRAFT,
-      diff: data.content ? this.calculateDetailedDiff(data.content, content) : null
-    };
-    
-    data.versions.push(newVersion);
-    data.currentVersion = newVersion.id;
-    data.content = content;
-
-    await this.state.storage.put("content", data);
-    return newVersion;
-  }
-
-  async getVersion(id: number): Promise<Version | null> {
-    const data = await this.initialize();
-    return data.versions.find(v => v.id === id) || null;
-  }
-
-  async getVersions(): Promise<Version[]> {
-    const data = await this.initialize();
-    return data.versions;
-  }
-
-  async deleteVersion(id: number): Promise<{ success: boolean; message: string }> {
-    const data = await this.initialize();
-    const versionIndex = data.versions.findIndex(v => v.id === id);
-    if (versionIndex === -1) throw new Error("Version not found");
-
-    data.versions.splice(versionIndex, 1);
-    if (data.currentVersion === id) {
-      const lastVersion = data.versions[data.versions.length - 1];
-      data.currentVersion = lastVersion ? lastVersion.id : 0;
-      data.content = lastVersion ? lastVersion.content : null;
-    }
-
-    await this.state.storage.put("content", data);
-    return { success: true, message: `Version ${id} deleted successfully` };
-  }
-
-  /**
-   * Step 6: Tag Management System
-   * Functions for managing version tags
-   */
-  async createTag(versionId: number, name: string): Promise<Tag> {
-    const data = await this.initialize();
-    const version = data.versions.find(v => v.id === versionId);
-    if (!version) throw new Error("Version not found");
-    if (data.tags[name]) throw new Error("Tag exists");
-
-    const newTag: Tag = {
-      name,
-      versionId,
-      createdAt: new Date().toISOString()
-    };
-    data.tags[name] = newTag;
-    await this.state.storage.put("content", data);
-    return newTag;
-  }
-
-  async getTags(): Promise<Tag[]> {
-    const data = await this.initialize();
-    return Object.values(data.tags);
-  }
-  async getVersionTags(versionId: number): Promise<Tag[]> {
-    const data = await this.initialize();
-    return Object.values(data.tags).filter(tag => tag.versionId === versionId);
-  }
-
-  async updateTag(oldName: string, newName: string): Promise<Tag> {
-    const data = await this.initialize();
-    const oldTag = data.tags[oldName];
-    if (!oldTag) throw new Error("Tag not found");
-    if (oldName !== newName && data.tags[newName]) throw new Error("New tag exists");
-
-    const updatedTag = {
-      ...oldTag,
-      name: newName,
-      updatedAt: new Date().toISOString()
-    };
-    delete data.tags[oldName];
-    data.tags[newName] = updatedTag;
-    await this.state.storage.put("content", data);
-    return updatedTag;
-  }
-
-  /**
-   * Step 7: Publishing System
-   * Manage content publishing workflow
-   */
-  async publishVersion(versionId: number, publishedBy: string): Promise<PublishRecord> {
-    const data = await this.initialize();
-    const version = data.versions.find(v => v.id === versionId);
-    if (!version) throw new Error("Version not found");
-
-    // Publishing logic - See GitHub for complete implementation
-    const publishRecord: PublishRecord = {
-      versionId,
-      publishedAt: new Date().toISOString(),
-      publishedBy
-    };
-    data.publishHistory = [...(data.publishHistory || []), publishRecord];
-    await this.state.storage.put("content", data);
-    return publishRecord;
-  }
-
-  async getPublishHistory(): Promise<PublishRecord[]> {
-    const data = await this.initialize();
-    return data.publishHistory || [];
-  }
-  // Unpublish a version
-  async unpublishVersion(versionId: number): Promise<Version> {
-    const data = await this.initialize();
-    const version = data.versions.find(v => v.id === versionId);
-    if (!version) {
-      throw new Error("Version not found");
-    }
-    data.versions = data.versions.map(v => ({
-      ...v,
-      status: v.id === versionId ? VersionStatus.DRAFT : v.status
-    }));
-    if (data.publishHistory) {
-      data.publishHistory = data.publishHistory.filter(
-        record => record.versionId !== versionId
-      );
-    }
-    if (data.currentVersion === versionId) {
-      data.currentVersion = 0;
-      data.content = null;
-    }
-    await this.state.storage.put("content", data);
-    const updatedVersion = data.versions.find(v => v.id === versionId);
-    if (!updatedVersion) {
-      throw new Error("Failed to get updated version");
-    }
-    return updatedVersion;
-  }
-  async getPublishHistory(): Promise<PublishRecord[]> {
-    const data = await this.initialize();
-    return data.publishHistory || [];
-  }
-
-  /**
-   * Step 8: Diff & Version Comparison
-   * Functions for comparing different versions
-   * See GitHub repository for complete diff implementation details
-   */
-  async compareVersions(fromId: number, toId: number): Promise<ContentDiff> {
-    const data = await this.initialize();
-    const fromVersion = data.versions.find(v => v.id === fromId);
-    const toVersion = data.versions.find(v => v.id === toId);
-    if (!fromVersion || !toVersion) {
-      throw new Error("Version not found");
-    }
-    return this.calculateDetailedDiff(fromVersion.content, toVersion.content);
-  }
-
-  private calculateDetailedDiff(oldContent: string, newContent: string): ContentDiff {
-    const patch = createPatch('content', oldContent, newContent, 'old', 'new');
-    return {
-      from: oldContent,
-      to: newContent,
-      changes: {
-        additions: newContent.split('\n').length - oldContent.split('\n').length,
-        deletions: Math.max(0, oldContent.split('\n').length - newContent.split('\n').length),
-        totalChanges: Math.abs(newContent.split('\n').length - oldContent.split('\n').length),
-        timestamp: new Date().toISOString()
-      },
-      patch,
-      hunks: []
-    };
-  }
-
-  async getDiff(fromId: number, toId: number): Promise<Response> {
-    const data = await this.initialize();
-    const fromVersion = data.versions.find(v => v.id === fromId);
-    const toVersion = data.versions.find(v => v.id === toId);
-    if (!fromVersion || !toVersion) throw new Error("Version not found");
-
-    // See GitHub repository for complete diff formatting implementation
-    return new Response(createPatch('content.txt',
-      fromVersion.content || '',
-      toVersion.content || '',
-      `Version ${fromVersion.id}`,
-      `Version ${toVersion.id}`
-    ), {
-      headers: {
-        'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*',
-      }
-    });
-  }
-
-  /**
-   * Step 9: Version Control Operations
-   * Additional version control features
-   */
-  async revertTo(versionId: number): Promise<Version> {
-    const data = await this.initialize();
-    const targetVersion = data.versions.find(v => v.id === versionId);
-    if (!targetVersion) throw new Error("Version not found");
-    return this.createVersion(targetVersion.content, `Reverted to version ${versionId}`);
-  }
 }
 ```
 
-## 3. Test and deploy your project
+### Request Handling and Routing
 
-You can test your project locally by running the following command:
+Add request handling methods:
+
+```
+// Entry point for requests to the Durable Object
+async fetch(request: Request): Promise<Response> {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  try {
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const response = await this.handleRequest(request, parts);
+    
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
+  } catch (err) {
+    const error = err as Error;
+    return new Response(error.message, { status: 500, headers: corsHeaders });
+  }
+}
+
+private async handleRequest(request: Request, parts: string[]): Promise<Response> {
+  const path = parts.join('/');
+  
+  switch (`${request.method} ${path}`) {
+    case 'POST content': {
+      const { content, message } = await request.json();
+      return Response.json(await this.createVersion(content, message));
+    }
+    // Add other route handlers here (You can see the full code on GitHub repository)
+    default:
+      return new Response('No route matched', { status: 404 });
+  }
+}
+```
+### Core Version Control Functions
+
+Following are the basic version control operations. For complete implementation details, see GitHub repository:
+
+```
+// Initialize or get existing state from Durable Objects storage
+private async initialize(): Promise<ContentState> {
+  // Get existing state from Durable Objects storage
+  const stored = await this.state.storage.get<ContentState>("content");
+  if (!stored) {
+    // Initialize the state if not existed
+    const initialData: ContentState = {
+      currentVersion: 0,
+      versions: [],
+      tags: {},
+      content: null,
+      publishHistory: []
+    };
+    // Store state to Durabe Objects storag
+    await this.state.storage.put("content", initialData);
+    return initialData;
+  }
+  return stored;
+}
+// Get current state from Durable Object storage & Update the state with new version
+async createVersion(content: string, message: string = ""): Promise<Version> {
+  const data = await this.initialize();
+  const newVersion: Version = {
+    id: data.versions.length + 1,
+    content,
+    timestamp: new Date().toISOString(),
+    message,
+    status: VersionStatus.DRAFT,
+    diff: data.content ? this.calculateDetailedDiff(data.content, content) : null
+  };
+  
+  data.versions.push(newVersion);
+  data.currentVersion = newVersion.id;
+  data.content = content;
+
+  await this.state.storage.put("content", data);
+  return newVersion;
+}
+async getVersion(id: number): Promise<Version | null> {
+  const data = await this.initialize();
+  return data.versions.find(v => v.id === id) || null;
+}
+
+async getVersions(): Promise<Version[]> {
+  const data = await this.initialize();
+  return data.versions;
+}
+```
+
+### Tag Management functions
+
+```
+async createTag(versionId: number, name: string): Promise<Tag> {
+  const data = await this.initialize();
+  const version = data.versions.find(v => v.id === versionId);
+  if (!version) throw new Error("Version not found");
+  if (data.tags[name]) throw new Error("Tag exists");
+
+  const newTag: Tag = {
+    name,
+    versionId,
+    createdAt: new Date().toISOString()
+  };
+  data.tags[name] = newTag;
+  await this.state.storage.put("content", data);
+  return newTag;
+}
+
+async getTags(): Promise<Tag[]> {
+  const data = await this.initialize();
+  return Object.values(data.tags);
+}
+async getVersionTags(versionId: number): Promise<Tag[]> {
+  const data = await this.initialize();
+return Object.values(data.tags).filter(tag => tag.versionId === versionId);
+}
+```
+
+### Publishing and Unpublishing functions
+
+```
+async publishVersion(versionId: number, publishedBy: string): Promise<PublishRecord> {
+  const data = await this.initialize();
+  const version = data.versions.find(v => v.id === versionId);
+  if (!version) throw new Error("Version not found");
+
+  const publishRecord: PublishRecord = {
+    versionId,
+    publishedAt: new Date().toISOString(),
+    publishedBy
+  };
+  data.publishHistory = [...(data.publishHistory || []), publishRecord];
+  await this.state.storage.put("content", data);
+  return publishRecord;
+}
+
+// Unpublish a version
+async unpublishVersion(versionId: number): Promise<Version> {
+  const data = await this.initialize();
+  const version = data.versions.find(v => v.id === versionId);
+  if (!version) {
+    throw new Error("Version not found");
+  }
+  data.versions = data.versions.map(v => ({
+    ...v,
+    status: v.id === versionId ? VersionStatus.DRAFT : v.status
+  }));
+  if (data.publishHistory) {
+    data.publishHistory = data.publishHistory.filter(
+    record => record.versionId !== versionId
+    );
+  }
+  if (data.currentVersion === versionId) {
+    data.currentVersion = 0;
+    data.content = null;
+  }
+  await this.state.storage.put("content", data);
+  const updatedVersion = data.versions.find(v => v.id === versionId);
+  if (!updatedVersion) {
+    throw new Error("Failed to get updated version");
+  }
+  return updatedVersion;
+}
+
+async getPublishHistory(): Promise<PublishRecord[]> {
+  const data = await this.initialize();
+  return data.publishHistory || [];
+}
+```
+
+### Diff and Version Control Operations
+
+```
+async compareVersions(fromId: number, toId: number):     Promise<ContentDiff> {
+  const data = await this.initialize();
+  const fromVersion = data.versions.find(v => v.id === fromId);
+  const toVersion = data.versions.find(v => v.id === toId);
+  if (!fromVersion || !toVersion) {
+    throw new Error("Version not found");
+  }
+  return this.calculateDetailedDiff(fromVersion.content, toVersion.content);
+}
+
+private calculateDetailedDiff(oldContent: string, newContent: string): ContentDiff {
+  const patch = createPatch('content', oldContent, newContent, 'old', 'new');
+  return {
+    from: oldContent,
+    to: newContent,
+    changes: {
+      additions: newContent.split('\n').length - oldContent.split('\n').length,
+      deletions: Math.max(0, oldContent.split('\n').length - newContent.split('\n').length),
+      totalChanges: Math.abs(newContent.split('\n').length - oldContent.split('\n').length),
+      timestamp: new Date().toISOString()
+    },
+    patch,
+    hunks: []
+  };
+}
+
+async getDiff(fromId: number, toId: number): Promise<Response> {
+  const data = await this.initialize();
+  const fromVersion = data.versions.find(v => v.id === fromId);
+  const toVersion = data.versions.find(v => v.id === toId);
+  if (!fromVersion || !toVersion) throw new Error("Version not found");
+
+  return new Response(createPatch('content.txt',
+    fromVersion.content || '',
+    toVersion.content || '',
+    `Version ${fromVersion.id}`,
+    `Version ${toVersion.id}`
+  ), {
+    headers: {
+      'Content-Type': 'text/plain',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
+}
+
+async revertTo(versionId: number): Promise<Version> {
+  const data = await this.initialize();
+  const targetVersion = data.versions.find(v => v.id === versionId);
+  if (!targetVersion) throw new Error("Version not found");
+  return this.createVersion(targetVersion.content, `Reverted to version ${versionId}`);
+}
+```
+## 5. Testing and Deployment
+
+You can test your project locally using Wrangler:
 
 ```sh
 npx wrangler dev
@@ -815,38 +714,56 @@ wrangler deploy
 
 Here are some commands that you can use to test your project after deployment:
 
-```sh
-#### CRUD and version management operations: ####
-# 1. CREATE - Create a new version
+### Version Management Operations
+
+```
+# Create a new version
 curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"content": "Version 1 content", "message": "First version"}' \
   https://<your-worker-url>/content
 
-# 2. READ - Fetch the current version
+# Get current version
 curl -X GET \
   https://<your-worker-url>/content/default
 
-# Fetch the list of all versions
+# List all versions
 curl -X GET \
   https://<your-worker-url>/content/default/versions
 
-# Fetch a specific version (replace {id} with the actual ID)
+# Get specific version
 curl -X GET \
   https://<your-worker-url>/content/default/versions/{id}
 
-# 3. UPDATE - Revert to an older version (replace {id} with the ID of the version you want to revert to)
+# Compare versions
+curl -X GET \
+  https://<your-worker-url>/content/default/versions/8/diff?compare=13
+```
+
+### Tag Operations
+
+```
+# Create a new tag
 curl -X POST \
   -H "Content-Type: application/json" \
-  -d '{"versionId": {id}}' \
-  https://<your-worker-url>/content/default/revert
+  -d '{"versionId": 1, "name": "v1.0"}' \
+  https://<your-worker-url>/content/versions/tags
 
-# 4. DELETE - Delete a version (replace {id} with the actual ID)
-curl -X DELETE \
-  https://<your-worker-url>/content/default/versions/{id}
+# List all tags
+curl -X GET \
+  https://<your-worker-url>/content/versions/tags
 
-# 6. PUBLISHING
-# Publish a version -  (replace {id} with the actual ID)
+# Update tag name
+curl -X PUT \
+  -H "Content-Type: application/json" \
+  -d '{"newName": "stable"}' \
+  https://<your-worker-url>/content/versions/tags/v1.0
+```
+
+### Publishing and Unpublishing Operations
+
+```
+# Publish a version
 curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"publishedBy": "test-user"}' \
@@ -855,43 +772,9 @@ curl -X POST \
 # View publication history
 curl -X GET \
   https://<your-worker-url>/content/default/publish-history
-
-# View diff between versions
-# Option 1: E.g. you want to diff from version 2 to version 8
-curl -X GET \
-  https://<your-worker-url>/content/default/versions/8/diff?compare=13
-
-# Option 2: E.g. you want to diff  8 to version 2
-curl -X GET \
-  https://<your-worker-url>/content/default/versions/2/diff?compare=4
-
-#### CRUD operations for tags: ####
-# 1. Create a new tag
-curl -X POST "<your-worker-url>/content/versions/tags" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "versionId": 1,
-    "name": "v1.0"
-  }'
-
-# 2. Get all tags
-curl -X GET "https://<your-worker-url>/content/versions/tags"
-
-# 3. Get tags for specific version
-curl -X GET "https://<your-worker-url>/content/versions/1/tags"
-
-# 4. Update tag name
-curl -X PUT "https://content-version-system.trinhhaiyen79.workers.dev/content/versions/tags/v1.0" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "newName": "stable"
-  }'
-
-# 5. Delete tag
-curl -X DELETE "https://<your-worker-url>/content/versions/tags/stable"
 ```
 
-## 4. Additional resources
+## 6. Additional resources
 If you want to implement CI/CD for Worker platform, you can navigate to this blog: [Continuous Deployment for Cloudflare Workers with GitHub Actions](https://blog.cloudflare.com/workers-builds-integrated-ci-cd-built-on-the-workers-platform/)
 
 You can find source code for this project on: [GitHub](https://github.com/shinchan79/content-version-system.git)
