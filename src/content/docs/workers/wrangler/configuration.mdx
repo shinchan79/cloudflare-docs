@@ -76,7 +76,7 @@ Top-level keys apply to the Worker as a whole (and therefore all environments). 
 
 - `send_metrics` <Type text="boolean" /> <MetaInfo text="optional" />
 
-  - Whether Wrangler should send usage metrics to Cloudflare for this project.
+  - Whether Wrangler should send usage data to Cloudflare for this project. Defaults to `true`. You can learn more about this in our [data policy](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md).
 
 - `site` <Type text="object" /> <MetaInfo text="optional deprecated" />
 
@@ -475,7 +475,8 @@ To bind D1 databases to your Worker, assign an array of the below object to the 
 
 - `migrations_dir` <Type text="string" /> <MetaInfo text="optional" />
 
-  - The migration directory containing the migration files. By default, `wrangler d1 migrations create` creates a folder named `migrations`. You can use `migrations_dir` to specify a different folder containing the migration files. For more information, refer to [D1 Wrangler `migrations` commands](/workers/wrangler/commands/#migrations-create) and [D1 migrations](/d1/reference/migrations/).
+  - The migration directory containing the migration files. By default, `wrangler d1 migrations create` creates a folder named `migrations`. You can use `migrations_dir` to specify a different folder containing the migration files (for example, if you have a mono-repo setup, and want to use a single D1 instance across your apps/packages).
+  - For more information, refer to [D1 Wrangler `migrations` commands](/workers/wrangler/commands/#migrations-create) and [D1 migrations](/d1/reference/migrations/).
 
 :::note
 
@@ -1190,10 +1191,7 @@ upload_source_maps = true
 
 ## Workers Sites
 
-:::note[Cloudflare Pages]
-
-Consider using [Cloudflare Pages](/pages/) for hosting static applications instead of Workers Sites.
-:::
+<Render file="workers_sites"/>
 
 [Workers Sites](/workers/configuration/sites/) allows you to host static websites, or dynamic websites using frameworks like Vue or React, on Workers.
 
