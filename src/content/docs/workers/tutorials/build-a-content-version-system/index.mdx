@@ -40,19 +40,19 @@ To create a Worker project that is ready to use Durable Objects:
 Create a Worker named `content-version-system` by running:
 
     <PackageManagers
-        type="create"
-        pkg="cloudflare@latest"
-        args={"content-version-system"}
+    	type="create"
+    	pkg="cloudflare@latest"
+    	args={"content-version-system"}
     />
 
     <Render
-        file="c3-post-run-steps"
-        product="workers"
-        params={{
-            category: "hello-world",
-            type: "Hello World Worker Using Durable Objects",
-            lang: "TypeScript",
-        }}
+    	file="c3-post-run-steps"
+    	product="workers"
+    	params={{
+    		category: "hello-world",
+    		type: "Hello World Worker Using Durable Objects",
+    		lang: "TypeScript",
+    	}}
     />
 
 Change into your new project directory:
